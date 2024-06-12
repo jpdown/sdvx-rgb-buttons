@@ -10,6 +10,8 @@
 #include <imgui.h>
 #include <backends/imgui_impl_dx9.h>
 #include <backends/imgui_impl_win32.h>
+#include <windows.h>
+#include <commctrl.h>
 
 void *endscene_func;
 
@@ -18,41 +20,15 @@ bool show_demo_window = false;
 bool show_another_window = false;
 ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+#define SUBCLASS_ID 0x2BA295
+HWND subclassed_window;
+
 SafetyHookInline end_scene_hook{};
 
-void initialize_imgui(LPDIRECT3DDEVICE9 device) {
-    D3DDEVICE_CREATION_PARAMETERS creation_params;
-    auto result = device->GetCreationParameters(&creation_params);
+// Forward declaration of helpers
+void initialize_imgui(LPDIRECT3DDEVICE9 device);
+LRESULT WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubClass, DWORD_PTR dwRefData);
 
-    if (result == D3D_OK) {
-        SPDLOG_INFO("got window");
-        SPDLOG_INFO((void *)creation_params.hFocusWindow);
-    } else {
-        SPDLOG_ERROR("got error %l", result);
-        return;
-    }
-
-    // Setup Dear ImGui context
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-
-    // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-    //ImGui::StyleColorsLight();
-
-    // Setup Platform/Renderer backends
-    ImGui_ImplWin32_Init(creation_params.hFocusWindow);
-    ImGui_ImplDX9_Init(device);
-
-    imgui_initialized = true;
-
-
-    // TODO need to receive window messages and pass to imgui
-    // I believe I can do this through subclassing the window
-}
 
 HRESULT SAFETYHOOK_NOINLINE SAFETYHOOK_STDCALL end_scene(LPDIRECT3DDEVICE9 device) {
 
@@ -145,11 +121,64 @@ void init_hook() {
 }
 
 void remove_hook() {
-    ImGui_ImplDX9_Shutdown();
-    ImGui_ImplWin32_Shutdown();
-    ImGui::DestroyContext();
+    if (imgui_initialized) {
+        ImGui_ImplDX9_Shutdown();
+        ImGui_ImplWin32_Shutdown();
+        ImGui::DestroyContext();
+
+        RemoveWindowSubclass(subclassed_window, WndProc, SUBCLASS_ID);
+    }
 
     // uninstall the hook, safetyhook makes this easy
     end_scene_hook.reset();
     SPDLOG_INFO("end scene hook uninstalled");
+}
+
+
+
+void initialize_imgui(LPDIRECT3DDEVICE9 device) {
+    D3DDEVICE_CREATION_PARAMETERS creation_params;
+    auto result = device->GetCreationParameters(&creation_params);
+
+    if (result == D3D_OK) {
+        SPDLOG_INFO("got window");
+        SPDLOG_INFO((void *)creation_params.hFocusWindow);
+    } else {
+        SPDLOG_ERROR("got error %l", result);
+        return;
+    }
+
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsLight();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplWin32_Init(creation_params.hFocusWindow);
+    ImGui_ImplDX9_Init(device);
+
+    SetWindowSubclass(creation_params.hFocusWindow, WndProc, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(nullptr));
+    subclassed_window = creation_params.hFocusWindow;
+
+    imgui_initialized = true;
+}
+
+// Forward declare message handler from imgui_impl_win32.cpp
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+LRESULT WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+    if (ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam))
+        return true;
+
+    if (uMsg == WM_NCDESTROY) {
+        RemoveWindowSubclass(hWnd, WndProc, uIdSubclass);
+    }
+
+    return DefSubclassProc(hWnd, uMsg, wParam, lParam);
 }
