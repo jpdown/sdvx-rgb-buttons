@@ -47,5 +47,5 @@ file(GLOB IMGUI_GLOB
 add_library("imgui" STATIC ${IMGUI_GLOB})
 target_include_directories("imgui" PUBLIC ${IMGUI_PATH})
 
-add_library(sdvx_rgb_buttons MODULE library.cpp)
+add_library(${PROJECT_NAME} MODULE library.cpp d3d9_hook.cpp)
 target_link_libraries(${PROJECT_NAME} safetyhook spdlog signature-scanner imgui d3d9)

@@ -3,6 +3,8 @@
 #include "Windows.h"
 #include "spdlog/spdlog.h"
 
+#include "d3d9_hook.h"
+
 #include <iostream>
 
 DWORD WINAPI hook_init(LPVOID dll_instance) {
@@ -12,6 +14,8 @@ DWORD WINAPI hook_init(LPVOID dll_instance) {
     spdlog::set_pattern("[%n %Y-%m-%d %T %l %s:%#:%!] %v");
     SPDLOG_INFO("Loaded!");
 
+    init_hook();
+
     while (true) {
         if (GetAsyncKeyState(VK_F9)) {
             break;
@@ -19,6 +23,7 @@ DWORD WINAPI hook_init(LPVOID dll_instance) {
     }
 
     SPDLOG_INFO("Unloading.");
+    remove_hook();
     FreeLibraryAndExitThread(static_cast<HMODULE>(dll_instance), EXIT_SUCCESS);
 }
 
