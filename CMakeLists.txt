@@ -26,5 +26,26 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(signature-scanner)
 
+set(IMGUI_PATH ${CMAKE_CURRENT_LIST_DIR}/external/imgui)
+file(GLOB IMGUI_GLOB
+        ${IMGUI_PATH}/imconfig.h
+        ${IMGUI_PATH}/imgui.cpp
+        ${IMGUI_PATH}/imgui.h
+        ${IMGUI_PATH}/imgui_demo.cpp
+        ${IMGUI_PATH}/imgui_draw.cpp
+        ${IMGUI_PATH}/imgui_internal.h
+        ${IMGUI_PATH}/imgui_tables.cpp
+        ${IMGUI_PATH}/imgui_widgets.cpp
+        ${IMGUI_PATH}/imstb_rectpack.h
+        ${IMGUI_PATH}/imstb_textedit.h
+        ${IMGUI_PATH}/imstb_truetype.h
+
+        ${IMGUI_PATH}/backends/imgui_impl_dx9.h
+        ${IMGUI_PATH}/backends/imgui_impl_dx9.cpp
+        ${IMGUI_PATH}/backends/imgui_impl_win32.h
+        ${IMGUI_PATH}/backends/imgui_impl_win32.cpp)
+add_library("imgui" STATIC ${IMGUI_GLOB})
+target_include_directories("imgui" PUBLIC ${IMGUI_PATH})
+
 add_library(sdvx_rgb_buttons MODULE library.cpp)
-target_link_libraries(${PROJECT_NAME} safetyhook spdlog signature-scanner)
+target_link_libraries(${PROJECT_NAME} safetyhook spdlog signature-scanner imgui d3d9)
