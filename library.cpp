@@ -2,10 +2,46 @@
 
 #include "Windows.h"
 #include "spdlog/spdlog.h"
+#include <safetyhook.hpp>
 
 #include "d3d9_hook.h"
 
+#include "external/signature-scanner/signature.h"
+
 #include <iostream>
+#include <Psapi.h>
+#include <span>
+
+constexpr auto jacket_load_sig = "90 48 8B 00 48 89 45 ? 48 8D 55 ? 48 8B CE"_sig;
+
+SafetyHookMid jacket_load_hook{};
+
+void hooked_jacket_load(SafetyHookContext &ctx) {
+    auto new_jacket_ptr = (LPDIRECT3DTEXTURE9*) (ctx.rbp - 0x39);
+    auto new_jacket = *new_jacket_ptr;
+    SPDLOG_INFO("got jacket ptr {:x}", (intptr_t) new_jacket_ptr);
+    SPDLOG_INFO("got jacket {:x}", (intptr_t) new_jacket);
+
+    new_jacket->AddRef();
+
+    if (jacket != nullptr) {
+        jacket->Release();
+    }
+
+    jacket = new_jacket;
+}
+
+void unload(LPVOID dll_instance) {
+    SPDLOG_INFO("Unloading.");
+
+    if (jacket != nullptr) {
+        jacket->Release();
+    }
+
+    jacket_load_hook.reset();
+    remove_hook();
+    FreeLibraryAndExitThread(static_cast<HMODULE>(dll_instance), EXIT_SUCCESS);
+}
 
 DWORD WINAPI hook_init(LPVOID dll_instance) {
 #ifdef _DEBUG
@@ -16,15 +52,38 @@ DWORD WINAPI hook_init(LPVOID dll_instance) {
 
     init_hook();
 
+    auto proc = GetCurrentProcess();
+    auto module = GetModuleHandleW(L"soundvoltex.dll");
+    MODULEINFO info;
+    auto success = GetModuleInformation(proc, module, &info, sizeof(info));
+    if (!success) {
+        SPDLOG_ERROR("couldn't load sound voltex module");
+        unload(dll_instance);
+        return EXIT_FAILURE;
+    }
+
+
+    auto span = std::span<uint8_t>(reinterpret_cast<uint8_t *>(info.lpBaseOfDll), info.SizeOfImage);
+
+    auto jacket_load_offset = jacket_load_sig.scan(span);
+    if (jacket_load_offset == -1) {
+        SPDLOG_ERROR("couldn't find jacket load instruction");
+        unload(dll_instance);
+        return EXIT_FAILURE;
+    }
+
+    SPDLOG_INFO("scanned address {:x} hardcoded address {:x}", (intptr_t)info.lpBaseOfDll + jacket_load_offset, (intptr_t)info.lpBaseOfDll + 0x4c1337);
+
+    jacket_load_hook = safetyhook::create_mid((intptr_t)info.lpBaseOfDll + 0x4c1337, hooked_jacket_load);
+
     while (true) {
         if (GetAsyncKeyState(VK_F9)) {
             break;
         }
     }
 
-    SPDLOG_INFO("Unloading.");
-    remove_hook();
-    FreeLibraryAndExitThread(static_cast<HMODULE>(dll_instance), EXIT_SUCCESS);
+    unload(dll_instance);
+    return EXIT_SUCCESS;
 }
 
 BOOL APIENTRY DllMain(HINSTANCE dll_instance, const DWORD reason, LPVOID _) {

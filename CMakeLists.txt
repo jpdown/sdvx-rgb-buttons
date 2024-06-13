@@ -19,13 +19,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
-FetchContent_Declare(
-        signature-scanner
-        GIT_REPOSITORY "https://github.com/jpdown/signature-scanner"
-        GIT_TAG "4978f0ef89a08c5f8ff712de413d28c155d83021"
-)
-FetchContent_MakeAvailable(signature-scanner)
-
 set(IMGUI_PATH ${CMAKE_CURRENT_LIST_DIR}/external/imgui)
 file(GLOB IMGUI_GLOB
         ${IMGUI_PATH}/imconfig.h
@@ -48,4 +41,4 @@ add_library("imgui" STATIC ${IMGUI_GLOB})
 target_include_directories("imgui" PUBLIC ${IMGUI_PATH})
 
 add_library(${PROJECT_NAME} MODULE library.cpp d3d9_hook.cpp)
-target_link_libraries(${PROJECT_NAME} safetyhook spdlog signature-scanner imgui d3d9 comctl32.lib)
+target_link_libraries(${PROJECT_NAME} safetyhook spdlog imgui d3d9 comctl32.lib)

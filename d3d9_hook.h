@@ -10,4 +10,6 @@
 void init_hook();
 void remove_hook();
 
+extern LPDIRECT3DTEXTURE9 jacket;
+
 #endif //CHUNI_SCALER_D3D9_HOOK_H

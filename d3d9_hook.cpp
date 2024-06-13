@@ -16,14 +16,13 @@
 void *endscene_func;
 
 bool imgui_initialized = false;
-bool show_demo_window = false;
-bool show_another_window = false;
-ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 #define SUBCLASS_ID 0x2BA295
 HWND subclassed_window;
 
 SafetyHookInline end_scene_hook{};
+
+LPDIRECT3DTEXTURE9 jacket = nullptr;
 
 // Forward declaration of helpers
 void initialize_imgui(LPDIRECT3DDEVICE9 device);
@@ -31,7 +30,6 @@ LRESULT WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uId
 
 
 HRESULT SAFETYHOOK_NOINLINE SAFETYHOOK_STDCALL end_scene(LPDIRECT3DDEVICE9 device) {
-
     if (!imgui_initialized) {
         initialize_imgui(device);
     }
@@ -40,39 +38,21 @@ HRESULT SAFETYHOOK_NOINLINE SAFETYHOOK_STDCALL end_scene(LPDIRECT3DDEVICE9 devic
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-    // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-    if (show_demo_window)
-        ImGui::ShowDemoWindow(&show_demo_window);
+    ImGui::GetIO().MouseDrawCursor = true;
 
-    // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
     {
-        static float f = 0.0f;
-        static int counter = 0;
+        ImGui::Begin("SDVX RGB Buttons");
 
-        ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+        ImGui::Text("soon i will conquer the world");
 
-        ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-        ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-        ImGui::Checkbox("Another Window", &show_another_window);
+        if (jacket != nullptr) {
+            D3DSURFACE_DESC my_image_desc;
+            jacket->GetLevelDesc(0, &my_image_desc);
+            ImGui::Image((void*)jacket, ImVec2(my_image_desc.Width, my_image_desc.Height));
+        } else {
+            ImGui::Text("no jacket loaded");
+        }
 
-        ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-        ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-        if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-            counter++;
-        ImGui::SameLine();
-        ImGui::Text("counter = %d", counter);
-
-        ImGui::End();
-    }
-
-    // 3. Show another simple window.
-    if (show_another_window)
-    {
-        ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-        ImGui::Text("Hello from another window!");
-        if (ImGui::Button("Close Me"))
-            show_another_window = false;
         ImGui::End();
     }
 
@@ -97,16 +77,12 @@ void init_hook() {
     HRESULT result = d3d->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetDesktopWindow(), D3DCREATE_HARDWARE_VERTEXPROCESSING, &params, &dummy);
 
     if (result != D3D_OK) {
-        SPDLOG_ERROR("error with d3d %ld", result);
-        SPDLOG_ERROR("is devicelost %d", result == D3DERR_DEVICELOST);
-        SPDLOG_ERROR("is invalidcall %d", result == D3DERR_INVALIDCALL);
-        SPDLOG_ERROR("is notavailable %d", result == D3DERR_NOTAVAILABLE);
-        SPDLOG_ERROR("is outofvideomemory %d", result == D3DERR_OUTOFVIDEOMEMORY);
+        SPDLOG_ERROR("error with d3d %ld, not hooking dx9", result);
+        return;
     }
 
     // The 42nd index into the table is the EndScene function (you can verify by looking at d3d9.h)
     void ***table = reinterpret_cast<void ***>(dummy);
-    SPDLOG_DEBUG(std::format("dummy pointer {:p} table pointer {:p} 42 pointer {:p}", (void*)dummy, (void*)table, (*table)[42]));
     // Copy this address to a value we own
     endscene_func = (*table)[42];
 
@@ -114,7 +90,6 @@ void init_hook() {
     dummy->Release();
     d3d->Release();
 
-    SPDLOG_DEBUG("installing hook...");
     // install the hook
     end_scene_hook = safetyhook::create_inline(endscene_func, reinterpret_cast<void *>(end_scene));
     SPDLOG_INFO("end scene hook installed");
@@ -140,11 +115,8 @@ void initialize_imgui(LPDIRECT3DDEVICE9 device) {
     D3DDEVICE_CREATION_PARAMETERS creation_params;
     auto result = device->GetCreationParameters(&creation_params);
 
-    if (result == D3D_OK) {
-        SPDLOG_INFO("got window");
-        SPDLOG_INFO((void *)creation_params.hFocusWindow);
-    } else {
-        SPDLOG_ERROR("got error %l", result);
+    if (result != D3D_OK) {
+        SPDLOG_ERROR("couldn't get window for imgui, error %l", result);
         return;
     }
 
@@ -154,16 +126,17 @@ void initialize_imgui(LPDIRECT3DDEVICE9 device) {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    io.IniFilename = nullptr; // Disable writing an imgui.ini to the game folder
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
-    //ImGui::StyleColorsLight();
 
     // Setup Platform/Renderer backends
     ImGui_ImplWin32_Init(creation_params.hFocusWindow);
     ImGui_ImplDX9_Init(device);
 
     SetWindowSubclass(creation_params.hFocusWindow, WndProc, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(nullptr));
+    // Need to store this to undo the subclass on unload
     subclassed_window = creation_params.hFocusWindow;
 
     imgui_initialized = true;
