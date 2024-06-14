@@ -1,7 +1,8 @@
 #include "library.h"
 
 #include "Windows.h"
-#include "spdlog/spdlog.h"
+#include "log.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
 #include <safetyhook.hpp>
 
 #include "d3d9_hook.h"
@@ -44,6 +45,8 @@ void unload(LPVOID dll_instance) {
 }
 
 DWORD WINAPI hook_init(LPVOID dll_instance) {
+    auto logger = spdlog::stderr_color_mt("sdvx-rgb-buttons");
+    spdlog::set_default_logger(logger);
 #ifdef _DEBUG
     spdlog::set_level(spdlog::level::debug);
 #endif
@@ -72,9 +75,7 @@ DWORD WINAPI hook_init(LPVOID dll_instance) {
         return EXIT_FAILURE;
     }
 
-    SPDLOG_INFO("scanned address {:x} hardcoded address {:x}", (intptr_t)info.lpBaseOfDll + jacket_load_offset, (intptr_t)info.lpBaseOfDll + 0x4c1337);
-
-    jacket_load_hook = safetyhook::create_mid((intptr_t)info.lpBaseOfDll + 0x4c1337, hooked_jacket_load);
+    jacket_load_hook = safetyhook::create_mid((intptr_t)info.lpBaseOfDll + jacket_load_offset, hooked_jacket_load);
 
     while (true) {
         if (GetAsyncKeyState(VK_F9)) {

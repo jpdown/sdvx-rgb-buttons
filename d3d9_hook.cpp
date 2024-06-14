@@ -4,7 +4,7 @@
 
 #include <cstdio>
 #include "d3d9_hook.h"
-#include "spdlog/spdlog.h"
+#include "log.h"
 #include <safetyhook.hpp>
 
 #include <imgui.h>

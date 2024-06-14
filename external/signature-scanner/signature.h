@@ -9,8 +9,6 @@
 #include <cstdint>
 #include <span>
 
-#include <spdlog/spdlog.h>
-
 struct Byte {
     bool known = false;
     uint8_t byte = 0;
@@ -90,8 +88,7 @@ public:
             }
 
             if (found) {
-                SPDLOG_INFO("candidate match found at offset {:x}", offset);
-//                return offset;
+                return offset;
             }
         }
 

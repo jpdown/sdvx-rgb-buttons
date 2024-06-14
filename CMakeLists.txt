@@ -40,5 +40,6 @@ file(GLOB IMGUI_GLOB
 add_library("imgui" STATIC ${IMGUI_GLOB})
 target_include_directories("imgui" PUBLIC ${IMGUI_PATH})
 
-add_library(${PROJECT_NAME} MODULE library.cpp d3d9_hook.cpp)
+add_library(${PROJECT_NAME} MODULE library.cpp d3d9_hook.cpp
+        log.h)
 target_link_libraries(${PROJECT_NAME} safetyhook spdlog imgui d3d9 comctl32.lib)
