@@ -8,6 +8,7 @@
 #include <array>
 #include <cstdint>
 #include <span>
+#include <string_view>
 
 struct Byte {
     bool known = false;
